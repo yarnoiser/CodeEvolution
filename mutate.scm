@@ -50,27 +50,51 @@
 
 (define test (mutate '(1 2 3 4 5) 1/5 'ran '(#f)))
 
-(define (func? x)
+
+(define (make-counter n)
+  (lambda ()
+    (let ([old-n n])
+      (set! n (add1 n))
+      old-n)))
+
+(define symbol-counter (make-counter 0))
+
+(define (new-var)
+  (string->symbol (string-append "s" (number->string (symbol-counter)))))
+
+(define var? symbol?)
+
+(define (lambda? x)
   (and (list? x)
        (= (length x) 3)
        (eq? (car x) 'lambda)
        (list? (cadr x))))
 
-(define func-arg caadr)
+(define lambda-var caadr)
 
-(define func-body caddr)
+(define lambda-body caddr)
 
-(define (symbols func)
-  (let loop ([f func]
-             [symbs '()])
-    (if (not (func? f))
-      symbs
-      (loop (func-body f) (cons (func-arg f) symbs)))))
+(define (app? x)
+  (and (list? x)
+       (= (length x) 2)))
 
-(define (extend symb func)
-  `(lambda (,symb) ,func))
+(define app-called car)
+
+(define app-input cadr)
+
+(define (lambda-term? x)
+  (or (lambda? x)
+      (app? x)
+      (var? x)))
 
 (define (random-element lst)
   (list-ref (random (length lst))))
+
+(define (add-lambda f)
+  `(lambda (,(new-var))
+     ,f))
+
+(define (add-app symb expr)
+  `(,symb ,expr))
 
 
