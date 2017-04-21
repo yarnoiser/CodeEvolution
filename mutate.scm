@@ -50,3 +50,27 @@
 
 (define test (mutate '(1 2 3 4 5) 1/5 'ran '(#f)))
 
+(define (func? x)
+  (and (list? x)
+       (= (length x) 3)
+       (eq? (car x) 'lambda)
+       (list? (cadr x))))
+
+(define func-arg caadr)
+
+(define func-body caddr)
+
+(define (symbols func)
+  (let loop ([f func]
+             [symbs '()])
+    (if (not (func? f))
+      symbs
+      (loop (func-body f) (cons (func-arg f) symbs)))))
+
+(define (extend symb func)
+  `(lambda (,symb) ,func))
+
+(define (random-element lst)
+  (list-ref (random (length lst))))
+
+
