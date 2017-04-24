@@ -28,26 +28,24 @@
       (application? x)
       (lambda? x)))
 
-(define (make-counter n)
-  (lambda ()
-    (let ([res n])
-      (set! n (add1 n))
-      res)))
-
-(define variable-counter (make-counter 0))
+(define variable-counter 0)
 
 (define (make-variable)
-  (string->symbol (string-append "v" (number->string (variable-counter)))))
+  (let ([v (string->symbol (string-append "v" (number->string variable-counter)))])
+    (set! variable-counter (add1 variable-counter))
+    v))
 
-(define (random-mutation)
-  (random 4))
+(define (random-mutation bound)
+  (if (null? bound)
+    0
+    (random 4)))
 
-(define (mutate term type var-index bound-vars free-vars)
+(define (mutate term type var-index bound-vars)
   (case type
-    [(0) ; bound variable
+    [(0) ; lambda abstraction binding new variable
+     `(l ,(make-variable) ,term)]
+    [(1) ; bound variable
      (list-ref bound-vars var-index)]
-    [(1) ; lambda abstraction binding new variable
-     `(l ,(make-var) ,term)]
     [(2) ; apply term to bound variable
      `(,term ,(list-ref bound-vars var-index))]
     [(3) ; apply bound variable to term
@@ -74,4 +72,19 @@
       [else
        (error "not a lambda term")])))
 
+(define (replicate prob term)
+  (let ([mutate? (make-probability-predicate prob)])
+    (let loop ([t term]
+               [bound '()])
+      (let ([result (if (mutate?)
+                      (mutate t (random-mutation bound) (random (length bound)) bound)
+                      t)])
+        (cond
+          [(variable? result)
+           result]
+          [(lambda? result)
+           `(l ,(lambda-argument result) ,(loop (lambda-body result) (cons (lambda-argument result) bound)))]
+          [(application? result)
+           `(,(loop (application-function result) bound) ,(loop (application-argument result) bound))]
+          [(error "not a lambda term")])))))
 
