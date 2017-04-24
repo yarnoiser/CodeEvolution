@@ -63,5 +63,12 @@
     [(9) ; apply free variable to term
      `(,(list-ref free-vars var-index) ,term)]
     [(10) ; apply bound variable to term
-     `(,(list-ref bound-vars var-index) ,term)]))
+     `(,(list-ref bound-vars var-index) ,term)]
+    [else
+      (error "unkonwn mutation code")]))
+
+(define (make-probability-predicate prob)
+  (lambda ()
+    (< (random 100) (* prob 100))))
+
 
