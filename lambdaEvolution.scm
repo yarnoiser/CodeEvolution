@@ -4,22 +4,24 @@
 
 (define (application? x)
   (and (list? x)
-       (= length x 2)))
+       (= (length x) 2)
+       (lambda-term? (car x))
+       (lambda-term? (cadr x))))
 
 (define application-function car)
 
 (define application-argument cadr)
 
 (define (lambda? x)
-  (and (pair? x)
-       (not (list? x))
+  (and (list? x)
+       (= 3 (length x))
        (eq? 'l (car x))
-       (symbol? (cadr x))
-       (not (null? (cddr x)))))
+       (variable? (cadr x))
+       (lambda-term? (caddr x))))
 
 (define lambda-argument cadr)
 
-(define lambda-body cddr)
+(define lambda-body caddr)
 
 (define (lambda-term? x)
   (or (variable? x)
@@ -38,31 +40,17 @@
   (string->symbol (string-append "v" (number->string (variable-counter)))))
 
 (define (random-mutation)
-  (random 7))
+  (random 4))
 
 (define (mutate term type var-index bound-vars free-vars)
   (case type
-    [(0) ; new variable
-     (make-variable)]
-    [(1) ; free variable
-     (list-ref free-vars var-index)]
-    [(2) ; bound variable
+    [(0) ; bound variable
      (list-ref bound-vars var-index)]
-    [(3) ; lambda abstraction new variable
-     `(l ,(make-var) . ,term)]
-    [(4) ; lambda abstraction free variable
-     `(l ,(list-ref free-vars var-index) . ,term)]
-    [(5) ; appy term to new variable
-     `(,term ,(make-variable))]
-    [(6) ; apply term to free variable
-     `(,term ,(list-ref free-vars var-index))]
-    [(7) ; apply term to bound variable
+    [(1) ; lambda abstraction binding new variable
+     `(l ,(make-var) ,term)]
+    [(2) ; apply term to bound variable
      `(,term ,(list-ref bound-vars var-index))]
-    [(8) ; apply new variable to term
-     `(,(make-variable) ,term)]
-    [(9) ; apply free variable to term
-     `(,(list-ref free-vars var-index) ,term)]
-    [(10) ; apply bound variable to term
+    [(3) ; apply bound variable to term
      `(,(list-ref bound-vars var-index) ,term)]
     [else
       (error "unkonwn mutation code")]))
@@ -70,5 +58,20 @@
 (define (make-probability-predicate prob)
   (lambda ()
     (< (random 100) (* prob 100))))
+
+(define (terms term)
+  (let loop ([t term]
+             [count 1])
+    (cond
+      [(variable? t)
+       count]
+      [(lambda? t)
+       (loop (lambda-body t) (add1 count))]
+      [(application? t)
+       (+ count
+          (loop (application-function t) 1)
+          (loop (application-argument t) 1))]
+      [else
+       (error "not a lambda term")])))
 
 
