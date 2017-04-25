@@ -1,4 +1,4 @@
-(use extras)
+(use extras srfi-69)
 
 (define variable? symbol?)
 
@@ -28,12 +28,13 @@
       (application? x)
       (lambda? x)))
 
-(define variable-counter 0)
+(define (make-variable-maker count)
+  (lambda ()
+    (let ([v (string->symbol (string-append "v" (number->string count)))])
+      (set! count (add1 count))
+      v)))
 
-(define (make-variable)
-  (let ([v (string->symbol (string-append "v" (number->string variable-counter)))])
-    (set! variable-counter (add1 variable-counter))
-    v))
+(define make-variable (make-variable-maker 0))
 
 (define (random-mutation bound)
   (if (null? bound)
