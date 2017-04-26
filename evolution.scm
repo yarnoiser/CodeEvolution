@@ -36,6 +36,26 @@
 
 (define make-variable (make-variable-maker 0))
 
+(define (substitute term variable value)
+    (cond
+      [(variable? term)
+       value]
+      [(lambda? term)
+       `(l ,(lambda-argument term) ,(substitute (lambda-body term) variable value))]
+      [(application? term)
+       `(,(substitute (application-function term) variable value) ,(substitute (application-argument term) variable value))]))
+
+(define (beta-reduce term)
+  (cond
+    [(variable? term)
+     term]
+    [(lambda? term)
+     `(l ,(lambda-argument term) ,(beta-reduce (lambda-body term)))]
+    [(application? term)
+     (if (not (lambda? (application-function term)))
+       `(,(beta-reduce (application-function term)) ,(beta-reduce (application-argument term)))
+       (beta-reduce (lambda-body (substitute (application-function term) (lambda-argument (application-function term)) (application-argument term)))))]))
+
 (define (random-mutation bound)
   (if (null? bound)
     0
