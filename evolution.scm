@@ -37,13 +37,15 @@
 (define make-variable (make-variable-maker 0))
 
 (define (substitute term variable value)
-    (cond
-      [(variable? term)
-       value]
-      [(lambda? term)
-       `(l ,(lambda-argument term) ,(substitute (lambda-body term) variable value))]
-      [(application? term)
-       `(,(substitute (application-function term) variable value) ,(substitute (application-argument term) variable value))]))
+  (cond
+    [(variable? term)
+     (if (eq? term variable)
+       value
+       term)]
+    [(lambda? term)
+     `(l ,(lambda-argument term) ,(substitute (lambda-body term) variable value))]
+    [(application? term)
+     `(,(substitute (application-function term) variable value) ,(substitute (application-argument term) variable value))]))
 
 (define (beta-reduce term)
   (cond
@@ -54,7 +56,22 @@
     [(application? term)
      (if (not (lambda? (application-function term)))
        `(,(beta-reduce (application-function term)) ,(beta-reduce (application-argument term)))
-       (beta-reduce (lambda-body (substitute (application-function term) (lambda-argument (application-function term)) (application-argument term)))))]))
+       (beta-reduce (substitute (lambda-body (application-function term)) (lambda-argument (application-function term)) (application-argument term))))]))
+
+(define (terms term)
+  (let loop ([t term]
+             [count 1])
+    (cond
+      [(variable? t)
+       count]
+      [(lambda? t)
+       (loop (lambda-body t) (add1 count))]
+      [(application? t)
+       (+ count
+          (loop (application-function t) 1)
+          (loop (application-argument t) 1))]
+      [else
+       (error "not a lambda term")])))
 
 (define (random-mutation bound)
   (if (null? bound)
@@ -77,21 +94,6 @@
 (define (make-probability-predicate prob)
   (lambda ()
     (< (random 100) (* prob 100))))
-
-(define (terms term)
-  (let loop ([t term]
-             [count 1])
-    (cond
-      [(variable? t)
-       count]
-      [(lambda? t)
-       (loop (lambda-body t) (add1 count))]
-      [(application? t)
-       (+ count
-          (loop (application-function t) 1)
-          (loop (application-argument t) 1))]
-      [else
-       (error "not a lambda term")])))
 
 (define (replicate prob term)
   (let ([mutate? (make-probability-predicate prob)])
