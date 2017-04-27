@@ -47,6 +47,40 @@
     [(application? term)
      `(,(substitute (application-function term) variable value) ,(substitute (application-argument term) variable value))]))
 
+(define (rename-single term variable new-variable)
+  (cond
+    [(variable? term)
+     (if (eq? term variable)
+       new-variable
+       term)]
+    [(lambda? term)
+     `(l ,(rename-single (lambda-argument term) variable new-variable)
+         ,(rename-single (lambda-body term) variable new-variable))]
+    [(application? term)
+     `(,(rename-single (application-function term) variable new-variable)
+       ,(rename-single (application-argument term) variable new-variable))]))
+
+(define (rename term)
+  (let ([make-variable (make-variable-maker 0)]
+        [renamed (make-hash-table)])
+    (let loop ([t term])
+      (cond
+        [(variable? t)
+         (if (hash-table-exists? renamed t)
+           t
+           (let ([new-var (make-variable)])
+             (hash-table-set! renamed new-var t)
+             new-var))]
+        [(lambda? t)
+         (if (hash-table-exists? renamed (lambda-argument t))
+           `(l ,(lambda-argument t) ,(loop (lambda-body t)))
+            (let* ([new-var (make-variable)]
+                   [result (rename-single t (lambda-argument t) new-var)])
+               (hash-table-set! renamed new-var #t)
+              `(l ,(lambda-argument result) ,(loop (lambda-body result)))))]
+        [(application? t)
+         `(,(loop (application-function t)) ,(loop (application-argument t)))]))))
+
 (define (beta-reduce term)
   (cond
     [(variable? term)
@@ -58,7 +92,7 @@
        `(,(beta-reduce (application-function term)) ,(beta-reduce (application-argument term)))
        (beta-reduce (substitute (lambda-body (application-function term)) (lambda-argument (application-function term)) (application-argument term))))]))
 
-(define (terms term)
+(define (num-terms term)
   (let loop ([t term]
              [count 1])
     (cond
