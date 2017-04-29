@@ -107,6 +107,65 @@
       [else
        (error "not a lambda term")])))
 
+(define (integer->church-numeral number)
+  `(l f (l x ,(let loop ([n number])
+                (if (= n 0)
+                  'x
+                  `(f ,(loop (sub1 n))))))))
+
+(define (church-numeral? term)
+  (cond
+    [(not (lambda? term))
+     #f]
+    [(not (lambda? (lambda-body term)))
+     #f]
+    [else
+     (let ([f1 (lambda-argument term)]
+           [f2 (lambda-argument (lambda-body term))])
+       (let loop ([t (lambda-body (lambda-body term))])
+         (cond
+           [(and (variable? t) (eq? t f2))
+            #t]
+           [(and (application? t) (eq? (application-function t) f1))
+            (loop (application-argument t))]
+           [else
+            #f])))]))
+
+(define (church-numeral->integer term)
+  (let ([body (lambda-body (lambda-body term))])
+    (let loop ([t body]
+               [n 0])
+      (if (variable? t)
+        n
+        (loop (application-argument t) (add1 n))))))
+
+(define (boolean->church-boolean bool)
+  (if bool
+    '(l a (l b a))
+    '(l a (l b b))))
+
+(define (church-boolean? term)
+  (cond
+    [(not (lambda? term))
+     #f]
+    [(not (lambda? (lambda-body term)))
+     #f]
+    [(not (variable? (lambda-body (lambda-body term))))
+     #f]
+    [else
+      (let ([a (lambda-argument term)]
+            [b (lambda-argument (lambda-body term))]
+            [res (lambda-body (lambda-body term))])
+        (or (eq? res b) (eq? res b)))]))
+
+(define (church-boolean->boolean term)
+  (let ([a (lambda-argument term)]
+        [b (lambda-argument (lambda-body term))]
+        [res (lambda-body (lambda-body term))])
+    (if (eq? res a)
+      #t
+      #f)))
+
 (define (random-mutation bound)
   (if (null? bound)
     0
