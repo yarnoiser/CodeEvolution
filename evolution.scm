@@ -81,16 +81,26 @@
         [(application? t)
          `(,(loop (application-function t)) ,(loop (application-argument t)))]))))
 
-(define (beta-reduce term)
+(define (beta-reduce-step term)
   (cond
     [(variable? term)
      term]
     [(lambda? term)
-     `(l ,(lambda-argument term) ,(beta-reduce (lambda-body term)))]
+     `(l ,(lambda-argument term) ,(beta-reduce-step (lambda-body term)))]
     [(application? term)
      (if (not (lambda? (application-function term)))
-       `(,(beta-reduce (application-function term)) ,(beta-reduce (application-argument term)))
-       (beta-reduce (substitute (lambda-body (application-function term)) (lambda-argument (application-function term)) (application-argument term))))]))
+       `(,(beta-reduce-step (application-function term)) ,(beta-reduce-step (application-argument term)))
+       (beta-reduce-step (substitute (lambda-body (application-function term)) (lambda-argument (application-function term)) (application-argument term))))]
+    [else
+     (error "Not a lambda term")]))
+
+(define (beta-reduce term)
+  (define (reduce term)
+    (let ([reduced (beta-reduce-step term)])
+      (if (equal? reduced term)
+        term
+        (reduce reduced))))
+  (reduce (rename term)))
 
 (define (num-terms term)
   (let loop ([t term]
@@ -107,7 +117,7 @@
       [else
        (error "not a lambda term")])))
 
-(define (integer->church-numeral number)
+(define (natural-number->church-numeral number)
   `(l f (l x ,(let loop ([n number])
                 (if (= n 0)
                   'x
@@ -165,6 +175,15 @@
     (if (eq? res a)
       #t
       #f)))
+
+(define (pair->church-pair pair)
+  (cond
+    [(null? pair)
+     '(l p ((p (l a (l b a)) (l a (l b) a))))]
+    [(not (pair? pair))
+     pair]
+    [else
+    `(l p ((p ,(car pair)) ,(pair->church-pair (cdr pair))))]))
 
 (define (random-mutation bound)
   (if (null? bound)
