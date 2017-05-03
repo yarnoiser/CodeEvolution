@@ -28,6 +28,9 @@
       (application? x)
       (lambda? x)))
 
+(define (alpha-equal? term1 term2)
+  (equal? (rename term1) (rename term2)))
+
 (define (make-variable-maker count)
   (lambda ()
     (let ([v (string->symbol (string-append "v" (number->string count)))])
@@ -176,14 +179,40 @@
       #t
       #f)))
 
+(define church-null '(l p ((p (l a (l b a))) (l a (l b a)))))
+
 (define (pair->church-pair pair)
   (cond
     [(null? pair)
-     '(l p ((p (l a (l b a)) (l a (l b) a))))]
+     church-null]
     [(not (pair? pair))
      pair]
     [else
     `(l p ((p ,(car pair)) ,(pair->church-pair (cdr pair))))]))
+
+(define (church-pair? term)
+  (cond
+    [(not (lambda? term))
+      #f]
+    [(not (application? (lambda-body term)))
+     #f]
+    [(not (application? (application-function (lambda-body term))))
+     #f]
+    [(not (variable? (application-function (application-function (lambda-body term)))))
+     #f]
+    [else
+      (eq? (lambda-argument term) (application-function (application-function (lambda-body term))))]))
+
+(define (church-pair->pair term)
+  (let ([a (application-argument (application-function (lambda-body term)))]
+        [b (application-argument (lambda-body term))])
+    (cond
+      [(alpha-equal? church-null term)
+       '()]
+      [(church-pair? b)
+       `(,a . ,(church-pair->pair b))]
+      [else
+       `(,a . b)])))
 
 (define (random-mutation bound)
   (if (null? bound)
