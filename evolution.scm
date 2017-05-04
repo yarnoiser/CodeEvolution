@@ -1,4 +1,4 @@
-(use extras srfi-69)
+(use extras (srfi 1 69))
 
 (define variable? symbol?)
 
@@ -84,25 +84,29 @@
         [(application? t)
          `(,(loop (application-function t)) ,(loop (application-argument t)))]))))
 
-(define (beta-reduce-step term)
-  (cond
-    [(variable? term)
-     term]
-    [(lambda? term)
-     `(l ,(lambda-argument term) ,(beta-reduce-step (lambda-body term)))]
-    [(application? term)
-     (if (not (lambda? (application-function term)))
-       `(,(beta-reduce-step (application-function term)) ,(beta-reduce-step (application-argument term)))
-       (beta-reduce-step (substitute (lambda-body (application-function term)) (lambda-argument (application-function term)) (application-argument term))))]
-    [else
-     (error "Not a lambda term")]))
 
-(define (beta-reduce term)
+(define (beta-reduce term #!optional (application-limit 10000))
+  (define applications 0)
+  (define (beta-reduce-step term)
+    (cond
+      [(>= applications application-limit)
+       #f]
+      [(variable? term)
+       term]
+      [(lambda? term)
+       `(l ,(lambda-argument term) ,(beta-reduce-step (lambda-body term)))]
+      [(application? term)
+       (set! applications (add1 applications))
+       (if (not (lambda? (application-function term)))
+         `(,(beta-reduce-step (application-function term)) ,(beta-reduce-step (application-argument term)))
+         (beta-reduce-step (substitute (lambda-body (application-function term)) (lambda-argument (application-function term)) (application-argument term))))]
+      [else
+       (error "Not a lambda term")]))
   (define (reduce term)
     (let ([reduced (beta-reduce-step term)])
       (if (equal? reduced term)
         term
-        (reduce reduced))))
+       (reduce reduced))))
   (reduce (rename term)))
 
 (define (num-terms term)
@@ -144,7 +148,7 @@
            [else
             #f])))]))
 
-(define (church-numeral->integer term)
+(define (church-numeral->natural-number term)
   (let ([body (lambda-body (lambda-body term))])
     (let loop ([t body]
                [n 0])
@@ -251,4 +255,43 @@
           [(application? result)
            `(,(loop (application-function result) bound) ,(loop (application-argument result) bound))]
           [(error "not a lambda term")])))))
+
+(define (make-selector format? heuristic)
+  (lambda (term)
+    (if (format? term)
+      (heuristic term)
+      #f)))
+
+(define (generation term qty selector #!optional (application-limit 10000))
+  (let loop ([n 0]
+             [children '()])
+    (let* ([child (replicate (/ 1 (num-terms term)) term)]
+           [reduced (beta-reduce child application-limit)]
+           [heuristic (if reduced (selector reduced) #f)])
+      (cond
+        [(>= n qty)
+         children]
+        [(not heuristic)
+         (loop (add1 n) children)]
+        [else 
+         (loop (add1 n) (cons (list (heuristic child) children)))]))))
+
+(define (sort-format? term)
+  (if (not (church-pair? term))
+    #f
+    (let ([lst (church-pair->pair term)])
+      (every church-numeral? lst))))
+
+(define (sort-heuristic term)
+  (let loop ([lst (church-pair->pair term)]
+             [h 0])
+    (cond
+      [(null? lst)
+       h]
+      [(null? (cdr lst))
+       h]
+      [(= (church-numeral->natural-number (car lst)) (add1 (church-numeral->natural-number (cadr lst))))
+       (loop (cdr lst) (add1 h))]
+      [else
+       (loop (cdr lst) h)])))
 
