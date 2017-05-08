@@ -4,9 +4,7 @@
 
 (define (application? x)
   (and (list? x)
-       (= (length x) 2)
-       (lambda-term? (car x))
-       (lambda-term? (cadr x))))
+       (= (length x) 2)))
 
 (define application-function car)
 
@@ -16,8 +14,7 @@
   (and (list? x)
        (= 3 (length x))
        (eq? 'l (car x))
-       (variable? (cadr x))
-       (lambda-term? (caddr x))))
+       (variable? (cadr x))))
 
 (define lambda-argument cadr)
 
@@ -49,41 +46,6 @@
      `(l ,(lambda-argument term) ,(substitute (lambda-body term) variable value))]
     [(application? term)
      `(,(substitute (application-function term) variable value) ,(substitute (application-argument term) variable value))]))
-
-(define (rename-single term variable new-variable)
-  (cond
-    [(variable? term)
-     (if (eq? term variable)
-       new-variable
-       term)]
-    [(lambda? term)
-     `(l ,(rename-single (lambda-argument term) variable new-variable)
-         ,(rename-single (lambda-body term) variable new-variable))]
-    [(application? term)
-     `(,(rename-single (application-function term) variable new-variable)
-       ,(rename-single (application-argument term) variable new-variable))]))
-
-(define (rename term)
-  (let ([make-variable (make-variable-maker 0)]
-        [renamed (make-hash-table)])
-    (let loop ([t term])
-      (cond
-        [(variable? t)
-         (if (hash-table-exists? renamed t)
-           t
-           (let ([new-var (make-variable)])
-             (hash-table-set! renamed new-var t)
-             new-var))]
-        [(lambda? t)
-         (if (hash-table-exists? renamed (lambda-argument t))
-           `(l ,(lambda-argument t) ,(loop (lambda-body t)))
-            (let* ([new-var (make-variable)]
-                   [result (rename-single t (lambda-argument t) new-var)])
-               (hash-table-set! renamed new-var #t)
-              `(l ,(lambda-argument result) ,(loop (lambda-body result)))))]
-        [(application? t)
-         `(,(loop (application-function t)) ,(loop (application-argument t)))]))))
-
 
 (define (beta-reduce term #!optional (application-limit 10000))
   (define applications 0)
@@ -124,7 +86,7 @@
       [else
        (error "not a lambda term")])))
 
-(define (natural-number->church-numeral number)
+(define (number->church number)
   `(l f (l x ,(let loop ([n number])
                 (if (= n 0)
                   'x
@@ -148,7 +110,7 @@
            [else
             #f])))]))
 
-(define (church-numeral->natural-number term)
+(define (church->number term)
   (let ([body (lambda-body (lambda-body term))])
     (let loop ([t body]
                [n 0])
@@ -156,7 +118,7 @@
         n
         (loop (application-argument t) (add1 n))))))
 
-(define (boolean->church-boolean bool)
+(define (boolean->church bool)
   (if bool
     '(l a (l b a))
     '(l a (l b b))))
@@ -175,7 +137,7 @@
             [res (lambda-body (lambda-body term))])
         (or (eq? res b) (eq? res b)))]))
 
-(define (church-boolean->boolean term)
+(define (church->boolean term)
   (let ([a (lambda-argument term)]
         [b (lambda-argument (lambda-body term))]
         [res (lambda-body (lambda-body term))])
@@ -185,14 +147,14 @@
 
 (define church-null '(l p ((p (l a (l b a))) (l a (l b a)))))
 
-(define (pair->church-pair pair)
+(define (pair->church pair)
   (cond
     [(null? pair)
      church-null]
     [(not (pair? pair))
      pair]
     [else
-    `(l p ((p ,(car pair)) ,(pair->church-pair (cdr pair))))]))
+    `(l p ((p ,(car pair)) ,(pair->church (cdr pair))))]))
 
 (define (church-pair? term)
   (cond
@@ -207,16 +169,22 @@
     [else
       (eq? (lambda-argument term) (application-function (application-function (lambda-body term))))]))
 
-(define (church-pair->pair term)
+(define (church->pair term)
   (let ([a (application-argument (application-function (lambda-body term)))]
         [b (application-argument (lambda-body term))])
     (cond
       [(alpha-equal? church-null term)
        '()]
       [(church-pair? b)
-       `(,a . ,(church-pair->pair b))]
+       `(,a . ,(church->pair b))]
       [else
-       `(,a . b)])))
+       `(,a . ,b)])))
+
+(define (number-list->church lst)
+  (pair->church (map number->church lst)))
+
+(define (church->number-list term)
+  (map church->number (church->pair term)))
 
 (define (random-mutation bound)
   (if (null? bound)
@@ -256,42 +224,9 @@
            `(,(loop (application-function result) bound) ,(loop (application-argument result) bound))]
           [(error "not a lambda term")])))))
 
-(define (make-selector format? heuristic)
-  (lambda (term)
-    (if (format? term)
-      (heuristic term)
-      #f)))
-
-(define (generation term qty selector #!optional (application-limit 10000))
-  (let loop ([n 0]
-             [children '()])
-    (let* ([child (replicate (/ 1 (num-terms term)) term)]
-           [reduced (beta-reduce child application-limit)]
-           [heuristic (if reduced (selector reduced) #f)])
-      (cond
-        [(>= n qty)
-         children]
-        [(not heuristic)
-         (loop (add1 n) children)]
-        [else 
-         (loop (add1 n) (cons (list (heuristic child) children)))]))))
-
 (define (sort-format? term)
   (if (not (church-pair? term))
     #f
-    (let ([lst (church-pair->pair term)])
+    (let ([lst (church->pair term)])
       (every church-numeral? lst))))
-
-(define (sort-heuristic term)
-  (let loop ([lst (church-pair->pair term)]
-             [h 0])
-    (cond
-      [(null? lst)
-       h]
-      [(null? (cdr lst))
-       h]
-      [(= (church-numeral->natural-number (car lst)) (add1 (church-numeral->natural-number (cadr lst))))
-       (loop (cdr lst) (add1 h))]
-      [else
-       (loop (cdr lst) h)])))
 
